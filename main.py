@@ -7,3 +7,13 @@ Created on Sat Apr 10 15:53:20 2021
 """
 
 #if you go slow you die
+
+import functions as fc
+
+res = fc.optimize()
+
+
+
+
+
+
