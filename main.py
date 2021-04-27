@@ -9,8 +9,26 @@ Created on Sat Apr 10 15:53:20 2021
 #if you go slow you die
 
 import functions as fc
+import numpy as np
+from numpy.linalg import norm
+import matplotlib.pyplot as plt
 
-res = fc.optimize()
+#speed
+v = 13
+
+time = fc.optimize(v)
+
+print(time)
+
+
+
+
+
+
+
+
+
+
 
 
 
