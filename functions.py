@@ -21,6 +21,11 @@ def rot(x):
     rot = np.dot(R, x)
     return rot
 
+#normieren
+def one(a):
+    a = np.array(a)/norm(np.array(a))
+    return a
+
 #splits vector in two parts
 def split(x):
     alpha = []
@@ -52,6 +57,19 @@ def pos(path,alpha):
         position.append([right[i,0]+gate[0],right[i,1]+gate[1]])
     return position
 
+#check constraints
+def check(a, max, min):
+    #delete first and last element, as they can't be calculated correctly
+    a = np.delete(a,-1)
+    a = np.delete(a,0)
+    #tolerance
+    epsilon = 0.6
+    for i in range(len(a)):
+        if max - a[i] < -epsilon:
+            print('Accident!!!')
+        if min + a[i] < -epsilon:
+            print('Accident!!!')
+
 #calculate velocity
 def vel(v,position):
     vel = []
@@ -76,11 +94,15 @@ def acc(path,alpha,v,i):
     dv = v[1]*velocity[1]-v[0]*velocity[0]
     a = np.array([dv[0]/time[0],dv[1]/time[0]])
     a_s = norm(a - (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0]) #orthogonal part to velocity
-    a_p = norm((np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0]) #parallel part of a to velocity
+    a_p = (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0] #parallel part of a to velocity
+    if v[1] > v[0]:
+        a_p = norm(a_p)
+    else:
+        a_p = -norm(a_p)
     return a_s, a_p
 
 #constraints
-def constraints(path, a_smax, a_pmax, half):
+def constraints(path, a_smax, a_pmax, a_pmin, half):
     #max curve acc
     def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
         def constraint1(x):
@@ -92,28 +114,32 @@ def constraints(path, a_smax, a_pmax, half):
         def constraint2(x):
            return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmax
         return constraint2
+
+    #min acc
+    def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint3(x):
+           return   acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmin
+        return constraint3
     
-    #begin in middle of track
-    c=[{'type': 'eq', 'fun': lambda x:  x[0] - 0.5}]
-    #begin with velocity 0
-    c=[{'type': 'eq', 'fun': lambda x:  x[half] }]
+    c = []
     
-    #add max and min curve acc
+    #add constraints
     for i in range(len(path[0])-2):
         c+=[{'type': 'ineq', 'fun': constraint_maker1(i)}]
         c+=[{'type': 'ineq', 'fun': constraint_maker2(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker3(i)}]
     
     
     return c
 
 # Boundaries
-def bounds(k):
+def bounds(k,v_max):
     b = []
     for i in range(k):
         if i < int(k/2+1):
             b+=[(0, 1)]
         else:
-            b+=[(0,1000)]
+            b+=[(0,v_max)]
     return b
 
 def track():
@@ -125,7 +151,7 @@ def track():
     #diagonal line
     left = np.array([[0,1],[1,2],[2,3],[3,4]])
     right = np.array([[1,0],[2,1],[3,2],[4,3]])
-
+    
     #curve
     left = np.array([[0,1],[1,1],[1.5,1],[2,1],[2.25,1.25],[2.5,1.5],[2.6,2],[2.6,2.5],[2.5,3],[2,3.5],[1.5,3.5],[1,3.5],[0,3.5]])
     right = np.array([[0,0],[1,0],[1.5,0],[2,0],[2.25,0.25],[2.5,0.5],[3,1.5],[3,3],[2.75,4],[2,4.5],[1.5,4.5],[1,4.5],[0,4.5]])
@@ -164,9 +190,10 @@ def track():
     left = np.array(left)
     left = left[750:800]
     
+    
     return left,right
 
-def plotter(path,position,vel):
+def plotter(path,position,vel,t):
     left = path[0]
     right = path[1]
     xl = left[:,0]
@@ -177,36 +204,32 @@ def plotter(path,position,vel):
     yp = np.array(position[:,1])
     vel = np.array(vel)
 
-    # Create a set of line segments so that we can color them individually
-    # This creates the points as a N x 1 x 2 array so that we can stack points
-    # together easily to get the segments. The segments array for line collection
-    # needs to be (numlines) x (points per line) x 2 (for x and y)
-    points = np.array([xp, yp]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    
+    p = np.array([xp, yp]).T.reshape(-1, 1, 2)
+    s = np.concatenate([p[:-1], p[1:]], axis=1)
 
     fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
 
-    # Create a continuous norm to map from data points to colors
-    norm = plt.Normalize(8, 13)
-    lc = LineCollection(segments, cmap='magma', norm=norm)
-    # Set the values used for colormapping
+    findnorm = np.delete(vel,-1) #because last velocity can't be calculated exactly
+    norm = plt.Normalize(findnorm.min(), findnorm.max())
+    lc = LineCollection(s, cmap='magma', norm=norm)
     lc.set_array(vel)
     lc.set_linewidth(2)
     line = axs.add_collection(lc)
     fig.colorbar(line, ax=axs)
-    plt.title('Speed \n')
+    plt.title('Time: %1.3f \n'%t)
     plt.plot(xl,yl,'k')
     plt.plot(xr,yr,'k')
 
     plt.grid(True)
     plt.xlabel('x')
     plt.ylabel('y')
-    axs.set_xlim(xp.min()-20, xr.max()+20)
-    axs.set_ylim(yp.min()-20, yp.max()+20)
+    axs.set_xlim(np.minimum(xr.min(),xl.min())-2, np.maximum(xr.max(),xl.max())+2)
+    axs.set_ylim(np.minimum(yr.min(),yl.min())-2, np.maximum(yr.max(),yl.max())+2)
     fig.savefig('result.png',orientation='portrait')
 
 
-def optimize(a_pmax, a_smax):
+def optimize(a_pmax, a_pmin, a_smax, v_max):
     #track
     path = track()
 
@@ -221,7 +244,7 @@ def optimize(a_pmax, a_smax):
         return f
 
     #constraints
-    cons = tuple(constraints(path, a_smax, a_pmax, half))
+    cons = tuple(constraints(path, a_smax, a_pmax, a_pmin, half))
     
     #initial guess
     x0 = []
@@ -231,7 +254,7 @@ def optimize(a_pmax, a_smax):
         x0.append(10)
     
     #Boundaries
-    bnds = tuple(bounds(len(x0)))
+    bnds = tuple(bounds(len(x0),v_max))
     
 
     #optimization

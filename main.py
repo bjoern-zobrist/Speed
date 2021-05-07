@@ -17,10 +17,12 @@ import time
 start_time = time.time()
 
 
-a_pmax = 5 #maximal parallel acceleration
-a_smax = 5 #maximal orthogonal acceleration
+a_pmax = 8 #maximal parallel acceleration
+a_pmin = 12 #maximal deceleration
+a_smax = 8 #maximal orthogonal acceleration
+v_max = 20 #maximal speed
 
-res = fc.optimize(a_pmax, a_smax)
+res = fc.optimize(a_pmax, a_pmin, a_smax, v_max)
 
 print('Calculations done')
 
@@ -39,13 +41,14 @@ for i in range(len(path[0])-2):
     
 t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.array(vel))
     
-fc.plotter(path,position,vel)
+fc.plotter(path,position,vel,t)
 
-print(t)
-print(a_p)
+fc.check(a_s,a_smax,0)
 print(a_s)
-print(alpha)
-print(vel)
+fc.check(a_p,a_pmax,a_pmin)
+print(a_p)
+
+
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
