@@ -142,7 +142,7 @@ def bounds(k,v_max):
             b+=[(0,v_max)]
     return b
 
-def track():
+def track(a,b):
     '''
     #straight line
     left = np.array([[0,1],[1,1],[2,1],[3,1],[4,1]])
@@ -164,7 +164,8 @@ def track():
     middle = []
     for i in range(len(track)):
         middle.append([track[i,0],track[i,1]])
-    middle = np.array(middle)    
+    middle = np.array(middle)
+      
     
     #calculate the direction
     direction = []
@@ -179,7 +180,20 @@ def track():
         perp = perp/norm(perp) #norm
         right.append(middle[i]+track[i,2]*perp)
     right = np.array(right)
-    right = right[750:800]
+    #delete every second point
+    dellist = []
+    zerolist = []
+    for i in range(len(right)):
+        if i%2 != 0:
+            dellist.append(i)
+            zerolist.append(0)
+    right = np.delete(right,dellist,0)
+    #select part of racetrack
+    if a == None:
+        right = right
+    else:
+        right = right[a:b]
+    
 
     #find left side
     left = []
@@ -188,7 +202,11 @@ def track():
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    left = left[750:800]
+    left = np.delete(left,dellist,0)
+    if a == None:
+        left = left
+    else:
+        left = left[a:b]
     
     
     return left,right
@@ -229,9 +247,8 @@ def plotter(path,position,vel,t):
     fig.savefig('result.png',orientation='portrait')
 
 
-def optimize(a_pmax, a_pmin, a_smax, v_max):
-    #track
-    path = track()
+def optimize(path, a_pmax, a_pmin, a_smax, v_max):
+    
 
     half = int(len(path[0])) #the first half of x ist alpha, the second is v, half is to find this part
     

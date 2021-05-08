@@ -21,12 +21,13 @@ a_pmax = 8 #maximal parallel acceleration
 a_pmin = 12 #maximal deceleration
 a_smax = 8 #maximal orthogonal acceleration
 v_max = 20 #maximal speed
+path = fc.track(375,425)
 
-res = fc.optimize(a_pmax, a_pmin, a_smax, v_max)
+res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max)
 
 print('Calculations done')
 
-path = fc.track()
+
 alpha, vel = fc.split(res.x)
 position = np.array(fc.pos(path,alpha))
 a_s = []
@@ -51,19 +52,3 @@ print(a_p)
 
 
 print("--- %s seconds ---" % (time.time() - start_time))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
