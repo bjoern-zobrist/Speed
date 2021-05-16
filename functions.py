@@ -8,99 +8,137 @@ Created on Sat Apr 10 20:18:03 2021
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, NonlinearConstraint, Bounds
 from numpy.linalg import norm
 import pandas as pd
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
 
-#rotate 90 degrees
-def rot(x):
-    theta =  np.pi/2
-    R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),  np.cos(theta)]])
-    rot = np.dot(R, x)
-    return rot
 
-#normieren
-def one(a):
-    a = np.array(a)/norm(np.array(a))
-    return a
-
-#splits vector in two parts
-def split(x):
-    alpha = []
-    vel = []
-    for i in range(len(x)):
-        if i < int(len(x)/2+1):
-            alpha.append(x[i])
-        else:
-            vel.append(x[i])
-    return alpha, vel
-
-
-#distance between the points
-def dist(x):
-    dist = []
-    for i in range(len(x)-1):
-        a = x[i]
-        b = x[i+1]
-        dist.append(np.sqrt( (np.abs(b[0]-a[0]))**2 + (np.abs(b[1]-a[1]))**2 ))
-    return dist
-
-#calculate position with alpha
-def pos(path,alpha):
-    position = []
-    left = path[0]
-    right = path[1]
-    for i in range(len(right)):
-        gate = [alpha[i]*(left[i,0]-right[i,0]),alpha[i]*(left[i,1]-right[i,1])]
-        position.append([right[i,0]+gate[0],right[i,1]+gate[1]])
-    return position
-
-#check constraints
-def check(a, max, min):
-    #delete first and last element, as they can't be calculated correctly
-    a = np.delete(a,-1)
-    a = np.delete(a,0)
-    #tolerance
-    epsilon = 0.6
-    for i in range(len(a)):
-        if max - a[i] < -epsilon:
-            print('Accident!!!')
-        if min + a[i] < -epsilon:
-            print('Accident!!!')
-
-#calculate velocity
-def vel(v,position):
-    vel = []
-    for i in range(len(position)-1):
-        velocity = position[i+1]-position[i]
-        vel.append( v * velocity/norm(velocity))
-    return vel
-
-
-#calculate acceleration
-def acc(path,alpha,v,i):
-    left,right = path
-    left = left[i:i+3] #take parts we need
-    right = right[i:i+3]
-    path = left,right
+def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
     
-    position = np.array(pos(path, alpha))
-    velocity = np.array(vel(v,position)) #direction of velocity
-    v = np.array(v) #speed
-    distance = np.array(dist(position))
-    time = distance/v
-    dv = v[1]*velocity[1]-v[0]*velocity[0]
-    a = np.array([dv[0]/time[0],dv[1]/time[0]])
-    a_s = norm(a - (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0]) #orthogonal part to velocity
-    a_p = (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0] #parallel part of a to velocity
-    if v[1] > v[0]:
-        a_p = norm(a_p)
-    else:
-        a_p = -norm(a_p)
-    return a_s, a_p
 
+    half = int(len(path[0])) #the first half of x ist alpha, the second is v, half is to find this part
+    
+ 
+    #function to minimize,slqp
+    def fun1(x):
+        alpha, vel = split(x)
+        vel = np.array(vel)
+        for i in range(len(vel)):
+            if vel[i] == 0:
+                vel[i] = 0.1
+        f = np.sum(np.array(dist(pos(path,alpha)))/vel)
+        
+        #penalty for constraints
+        g = []
+        for i in range(len(path[0])-2):
+            #take the correct alphas
+            q = alpha[i]
+            w = alpha[i+1]
+            e = alpha[i+2]
+            #curve acc
+            g.append(acc(path,[q,w,e],[vel[i],vel[i+1]],i)[0]-a_smax)
+        penalty = 0
+        for i in range(len(g)):
+            if g[i] > 0:
+                penalty += vel[i]*0.07
+        
+        return f + penalty 
+
+    #function to minimize,trust-constr
+    def fun2(x):
+        alpha, vel = split(x)
+        vel = np.array(vel)
+        for i in range(len(vel)):
+            if vel[i] == 0:
+                vel[i] = 0.1
+        f = np.sum(np.array(dist(pos(path,alpha)))/vel)
+        
+        return f 
+
+    #initial guess
+    x0 = []
+    for i in range(len(path[0])):
+        x0.append(0.5)
+    for i in range (len(path[0])):
+        x0.append(1.0)
+
+    #COBYLA
+    if method == 2:
+
+        #constraints
+        cobylacons = tuple(cobylaconstraints(path, a_smax, a_pmax, a_pmin, half,v_max))    
+
+        #optimization
+        res = minimize(fun2, x0, method='COBYLA', constraints=cobylacons)
+
+    
+    #trust-constr
+    if method == 1:
+        
+        #constraints
+        cmin = []
+        cmax = []
+        #cons of curve acc
+        for i in range(len(path[0])-2):
+            cmin.append(0.0)
+            cmax.append(a_smax)
+        for i in range(len(path[0])-2):
+            cmin.append(-a_pmin)
+            cmax.append(a_pmax)
+        c = cons(path,half)
+        trustcons = NonlinearConstraint(c.get_cons, cmin, cmax ,keep_feasible=True)
+        
+        #Boundaries
+        bmin = []
+        bmax = []
+        #bounds of alpha
+        for i in range(len(path[0])):
+            bmin.append(0.0)
+            bmax.append(1.0)
+        #bounds of speed
+        for i in range(len(path[0])):
+            bmin.append(0.0)
+            bmax.append(v_max)
+        bnds = Bounds(bmin, bmax)
+
+        #optimization
+        res = minimize(fun2, x0, method='trust-constr', bounds=bnds, constraints=trustcons)
+
+    #slsqp
+    if method == 0:
+        
+        #constraints
+        slqpcons = tuple(constraints(path, a_smax, a_pmax, a_pmin, half))
+    
+        #Boundaries
+        bnds = tuple(bounds(len(x0),v_max))
+    
+
+        #optimization
+        res = minimize(fun1, x0, method='slsqp', bounds=bnds, constraints=slqpcons)
+
+    return res
+
+
+#constraints for trust-constr
+class cons:
+    def __init__(self, path, half):
+        self.path = path
+        self.half = half
+    def get_cons(self, x):
+        result = []
+        #curve acc
+        for i in range(len(self.path[0])-2):
+            result.append(acc(self.path,[x[i],x[i+1],x[i+2]],[x[self.half+i],x[self.half+i+1]],i)[0])
+        #acc
+        for i in range(len(self.path[0])-2):
+            result.append(acc(self.path,[x[i],x[i+1],x[i+2]],[x[self.half+i],x[self.half+i+1]],i)[1])
+        return result
+
+
+#slsqp
 #constraints
 def constraints(path, a_smax, a_pmax, a_pmin, half):
     #max curve acc
@@ -141,6 +179,68 @@ def bounds(k,v_max):
         else:
             b+=[(0,v_max)]
     return b
+
+#COBYLA
+#constraints
+def cobylaconstraints(path, a_smax, a_pmax, a_pmin, half, v_max):
+    #max curve acc
+    def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint1(x):
+           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[0] + a_smax
+        return constraint1
+
+    #max acc
+    def constraint_maker2(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint2(x):
+           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmax
+        return constraint2
+
+    #min acc
+    def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint3(x):
+           return   acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmin
+        return constraint3
+
+    #max alpha
+    def constraint_maker4(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint4(x):
+           return  - x[i] + 1
+        return constraint4
+
+    #min alpha
+    def constraint_maker5(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint5(x):
+           return   x[i]
+        return constraint5
+
+    #max v
+    def constraint_maker6(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint6(x):
+           return  - x[half+i] + v_max
+        return constraint6
+
+    #min v
+    def constraint_maker7(i=0):  # i MUST be an optional keyword argument, else it will not work
+        def constraint7(x):
+           return   x[half+i] 
+        return constraint7
+    
+    c = []
+    
+    #add constraints
+    for i in range(len(path[0])-2):
+        c+=[{'type': 'ineq', 'fun': constraint_maker1(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker2(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker3(i)}]
+    
+    for i in range(len(path[0])):
+        c+=[{'type': 'ineq', 'fun': constraint_maker4(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker5(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker6(i)}]
+        c+=[{'type': 'ineq', 'fun': constraint_maker7(i)}]
+    
+    return c
+
 
 def track(a,b):
     '''
@@ -211,6 +311,103 @@ def track(a,b):
     
     return left,right
 
+#rotate 90 degrees
+def rot(x):
+    theta =  np.pi/2
+    R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),  np.cos(theta)]])
+    rot = np.dot(R, x)
+    return rot
+
+#normieren
+def one(a):
+    a = np.array(a)/norm(np.array(a))
+    return a
+
+
+#distance between the points
+def dist(x):
+    dist = []
+    for i in range(len(x)-1):
+        a = x[i]
+        b = x[i+1]
+        dist.append(np.sqrt( (np.abs(b[0]-a[0]))**2 + (np.abs(b[1]-a[1]))**2 ))
+    return dist
+
+#calculate position with alpha
+def pos(path,alpha):
+    position = []
+    left = path[0]
+    right = path[1]
+    for i in range(len(right)):
+        gate = [alpha[i]*(left[i,0]-right[i,0]),alpha[i]*(left[i,1]-right[i,1])]
+        position.append([right[i,0]+gate[0],right[i,1]+gate[1]])
+    return position
+
+#calculate velocity
+def vel(v,position):
+    vel = []
+    for i in range(len(position)-1):
+        velocity = position[i+1]-position[i]
+        vel.append( v * velocity/norm(velocity))
+    return vel
+
+
+#calculate acceleration
+def acc(path,alpha,v,i):
+    left,right = path
+    left = left[i:i+3] #take parts we need
+    right = right[i:i+3]
+    path = left,right
+    
+    position = np.array(pos(path, alpha))
+    velocity = np.array(vel(v,position)) #direction of velocity
+    v = np.array(v) #speed
+    distance = np.array(dist(position))
+    if v[0] == 0 or v[1] == 0:
+        time = np.array([1000,1000])
+    else:
+        time = distance/v
+    dv = v[1]*velocity[1]-v[0]*velocity[0]
+    a = np.array([dv[0]/time[0],dv[1]/time[0]])
+    if velocity[0][0] == 0 or velocity[0][0] == 0:
+        a_s = 1000
+        a_p = 1000
+    else:
+        a_s = norm(a - (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0]) #orthogonal part to velocity
+        a_p = (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0] #parallel part of a to velocity
+    if v[1] > v[0]:
+        a_p = norm(a_p)
+    else:
+        a_p = -norm(a_p)
+    return a_s, a_p
+
+
+
+#check constraints
+def check(a, max, min):
+    #delete first and last element, as they can't be calculated correctly
+    a = np.delete(a,-1)
+    a = np.delete(a,0)
+    #tolerance
+    epsilon = 0.2
+    for i in range(len(a)):
+        if max - a[i] < -epsilon:
+            print('Accident!!!')
+        if min + a[i] < -epsilon:
+            print('Accident!!!')
+
+
+#splits vector in two parts
+def split(x):
+    alpha = []
+    vel = []
+    for i in range(len(x)):
+        if i < int(len(x)/2+1):
+            alpha.append(x[i])
+        else:
+            vel.append(x[i])
+    return alpha, vel
+
 def plotter(path,position,vel,t):
     left = path[0]
     right = path[1]
@@ -247,34 +444,3 @@ def plotter(path,position,vel,t):
     fig.savefig('result.png',orientation='portrait')
 
 
-def optimize(path, a_pmax, a_pmin, a_smax, v_max):
-    
-
-    half = int(len(path[0])) #the first half of x ist alpha, the second is v, half is to find this part
-    
- 
-    #function to minimize
-    def fun(x):
-        alpha, vel = split(x)
-        vel = np.array(vel)
-        f = np.sum(np.array(dist(pos(path,alpha)))/vel)
-        return f
-
-    #constraints
-    cons = tuple(constraints(path, a_smax, a_pmax, a_pmin, half))
-    
-    #initial guess
-    x0 = []
-    for i in range(len(path[0])):
-        x0.append(0.5)
-    for i in range (len(path[0])):
-        x0.append(10)
-    
-    #Boundaries
-    bnds = tuple(bounds(len(x0),v_max))
-    
-
-    #optimization
-    res = minimize(fun, x0, method='SLSQP', bounds=bnds, constraints=cons)
-
-    return res
