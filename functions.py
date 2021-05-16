@@ -13,49 +13,16 @@ from numpy.linalg import norm
 import pandas as pd
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from methods import trust, cob, slsqp
+import enum
 
+class method(enum.Enum):
+    SLSQP = 0
+    TRUST = 1
+    COBYLA = 2
 
 def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
     
-
-    half = int(len(path[0])) #the first half of x ist alpha, the second is v, half is to find this part
-    
- 
-    #function to minimize,slqp
-    def fun1(x):
-        alpha, vel = split(x)
-        vel = np.array(vel)
-        for i in range(len(vel)):
-            if vel[i] == 0:
-                vel[i] = 0.1
-        f = np.sum(np.array(dist(pos(path,alpha)))/vel)
-        
-        #penalty for constraints
-        g = []
-        for i in range(len(path[0])-2):
-            #take the correct alphas
-            q = alpha[i]
-            w = alpha[i+1]
-            e = alpha[i+2]
-            #curve acc
-            g.append(acc(path,[q,w,e],[vel[i],vel[i+1]],i)[0]-a_smax)
-        penalty = 0
-        for i in range(len(g)):
-            if g[i] > 0:
-                penalty += vel[i]*0.07
-        
-        return f + penalty 
-
-    #function to minimize,trust-constr
-    def fun2(x):
-        alpha, vel = split(x)
-        vel = np.array(vel)
-        for i in range(len(vel)):
-            if vel[i] == 0:
-                vel[i] = 0.1
-        f = np.sum(np.array(dist(pos(path,alpha)))/vel)
-        
-        return f 
 
     #initial guess
     x0 = []
@@ -65,181 +32,49 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
         x0.append(1.0)
 
     #COBYLA
-    if method == 2:
+    if method == method.COBYLA:
+
+        m = cob(path, a_smax, a_pmax, a_pmin, v_max)
 
         #constraints
-        cobylacons = tuple(cobylaconstraints(path, a_smax, a_pmax, a_pmin, half,v_max))    
+        cobylacons = m.cons()
 
         #optimization
-        res = minimize(fun2, x0, method='COBYLA', constraints=cobylacons)
+        res = minimize(m.fun, x0, method='COBYLA', constraints=cobylacons)
 
     
     #trust-constr
-    if method == 1:
+    if method == method.TRUST:
         
-        #constraints
-        cmin = []
-        cmax = []
-        #cons of curve acc
-        for i in range(len(path[0])-2):
-            cmin.append(0.0)
-            cmax.append(a_smax)
-        for i in range(len(path[0])-2):
-            cmin.append(-a_pmin)
-            cmax.append(a_pmax)
-        c = cons(path,half)
-        trustcons = NonlinearConstraint(c.get_cons, cmin, cmax ,keep_feasible=True)
+        m = trust(path, a_smax, a_pmax, a_pmin, v_max)
+
+        #constraint
+        trustcons = m.cons()
         
         #Boundaries
-        bmin = []
-        bmax = []
-        #bounds of alpha
-        for i in range(len(path[0])):
-            bmin.append(0.0)
-            bmax.append(1.0)
-        #bounds of speed
-        for i in range(len(path[0])):
-            bmin.append(0.0)
-            bmax.append(v_max)
-        bnds = Bounds(bmin, bmax)
+        bnds = m.bounds()
 
         #optimization
-        res = minimize(fun2, x0, method='trust-constr', bounds=bnds, constraints=trustcons)
+        res = minimize(m.fun, x0, method='trust-constr', bounds=bnds, constraints=trustcons)
 
     #slsqp
-    if method == 0:
+    if method == method.SLSQP:
         
+        m = slsqp(path, a_smax, a_pmax, a_pmin, v_max)
+
         #constraints
-        slqpcons = tuple(constraints(path, a_smax, a_pmax, a_pmin, half))
+        slqpcons = m.cons()
     
         #Boundaries
-        bnds = tuple(bounds(len(x0),v_max))
+        bnds = m.bounds()
     
 
         #optimization
-        res = minimize(fun1, x0, method='slsqp', bounds=bnds, constraints=slqpcons)
+        res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slqpcons)
 
     return res
 
 
-#constraints for trust-constr
-class cons:
-    def __init__(self, path, half):
-        self.path = path
-        self.half = half
-    def get_cons(self, x):
-        result = []
-        #curve acc
-        for i in range(len(self.path[0])-2):
-            result.append(acc(self.path,[x[i],x[i+1],x[i+2]],[x[self.half+i],x[self.half+i+1]],i)[0])
-        #acc
-        for i in range(len(self.path[0])-2):
-            result.append(acc(self.path,[x[i],x[i+1],x[i+2]],[x[self.half+i],x[self.half+i+1]],i)[1])
-        return result
-
-
-#slsqp
-#constraints
-def constraints(path, a_smax, a_pmax, a_pmin, half):
-    #max curve acc
-    def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint1(x):
-           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[0] + a_smax
-        return constraint1
-
-    #max acc
-    def constraint_maker2(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint2(x):
-           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmax
-        return constraint2
-
-    #min acc
-    def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint3(x):
-           return   acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmin
-        return constraint3
-    
-    c = []
-    
-    #add constraints
-    for i in range(len(path[0])-2):
-        c+=[{'type': 'ineq', 'fun': constraint_maker1(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker2(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker3(i)}]
-    
-    
-    return c
-
-# Boundaries
-def bounds(k,v_max):
-    b = []
-    for i in range(k):
-        if i < int(k/2+1):
-            b+=[(0, 1)]
-        else:
-            b+=[(0,v_max)]
-    return b
-
-#COBYLA
-#constraints
-def cobylaconstraints(path, a_smax, a_pmax, a_pmin, half, v_max):
-    #max curve acc
-    def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint1(x):
-           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[0] + a_smax
-        return constraint1
-
-    #max acc
-    def constraint_maker2(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint2(x):
-           return  - acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmax
-        return constraint2
-
-    #min acc
-    def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint3(x):
-           return   acc(path,[x[i],x[i+1],x[i+2]],[x[half+i],x[half+i+1]],i)[1] + a_pmin
-        return constraint3
-
-    #max alpha
-    def constraint_maker4(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint4(x):
-           return  - x[i] + 1
-        return constraint4
-
-    #min alpha
-    def constraint_maker5(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint5(x):
-           return   x[i]
-        return constraint5
-
-    #max v
-    def constraint_maker6(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint6(x):
-           return  - x[half+i] + v_max
-        return constraint6
-
-    #min v
-    def constraint_maker7(i=0):  # i MUST be an optional keyword argument, else it will not work
-        def constraint7(x):
-           return   x[half+i] 
-        return constraint7
-    
-    c = []
-    
-    #add constraints
-    for i in range(len(path[0])-2):
-        c+=[{'type': 'ineq', 'fun': constraint_maker1(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker2(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker3(i)}]
-    
-    for i in range(len(path[0])):
-        c+=[{'type': 'ineq', 'fun': constraint_maker4(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker5(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker6(i)}]
-        c+=[{'type': 'ineq', 'fun': constraint_maker7(i)}]
-    
-    return c
 
 
 def track(a,b):
