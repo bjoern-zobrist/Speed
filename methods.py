@@ -21,6 +21,7 @@ class trust:
     def fun(self, x):
         alpha, vel = fc.split(x)
         vel = np.array(vel)
+        vel = np.delete(vel,-1)
         for i in range(len(vel)):
             if vel[i] == 0:
                 vel[i] = 0.1
@@ -31,10 +32,10 @@ class trust:
         result = []
         #curve acc
         for i in range(len(self.path[0])-2):
-            result.append(fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[0])
+            result.append(fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[0])
         #acc
         for i in range(len(self.path[0])-2):
-            result.append(fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[1])
+            result.append(fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[1])
         return result
 
     def cons(self):
@@ -79,6 +80,7 @@ class cob:
     def fun(self, x):
         alpha, vel = fc.split(x)
         vel = np.array(vel)
+        vel = np.delete(vel,-1)
         for i in range(len(vel)):
             if vel[i] == 0:
                 vel[i] = 0.1
@@ -90,19 +92,19 @@ class cob:
         #max curve acc
         def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint1(x):
-                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[0] + self.a_smax
+                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[0] + self.a_smax
             return constraint1
 
         #max acc
         def constraint_maker2(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint2(x):
-                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[1] + self.a_pmax
+                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[1] + self.a_pmax
             return constraint2
 
         #min acc
         def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint3(x):
-                return   fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[1] + self.a_pmin
+                return   fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[1] + self.a_pmin
             return constraint3
 
         #max alpha
@@ -157,45 +159,32 @@ class slsqp:
     def fun(self, x):
         alpha, vel = fc.split(x)
         vel = np.array(vel)
+        vel = np.delete(vel,-1)
         for i in range(len(vel)):
             if vel[i] == 0:
                 vel[i] = 0.1
         f = np.sum(np.array(fc.dist(fc.pos(self.path,alpha)))/vel)
         
-        #penalty for constraints
-        g = []
-        for i in range(len(self.path[0])-2):
-            #take the correct alphas
-            q = alpha[i]
-            w = alpha[i+1]
-            e = alpha[i+2]
-            #curve acc
-            g.append(fc.acc(self.path,[q,w,e],[vel[i],vel[i+1]],i)[0]-self.a_smax)
-        penalty = 0
-        for i in range(len(g)):
-            if g[i] > 0:
-                penalty += vel[i]*0.07
-        
-        return f + penalty
+        return f
 
     #constraints
     def cons(self):
         #max curve acc
         def constraint_maker1(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint1(x):
-                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[0] + self.a_smax
+                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[0] + self.a_smax
             return constraint1
 
         #max acc
         def constraint_maker2(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint2(x):
-                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[1] + self.a_pmax
+                return  - fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[1] + self.a_pmax
             return constraint2
 
         #min acc
         def constraint_maker3(i=0):  # i MUST be an optional keyword argument, else it will not work
             def constraint3(x):
-                return   fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1]],i)[1] + self.a_pmin
+                return   fc.acc(self.path,[x[i],x[i+1],x[i+2]],[x[len(self.path[0])+i],x[len(self.path[0])+i+1],x[len(self.path[0])+i+2]],i)[1] + self.a_pmin
             return constraint3
     
         c = []

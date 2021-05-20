@@ -17,14 +17,14 @@ from functions import method
 start_time = time.time()
 
 
-a_pmax = 8.0 #maximal parallel acceleration
-a_pmin = 12.0 #maximal deceleration
-a_smax = 12.0 #maximal orthogonal acceleration
-v_max = 20 #maximal speed
+a_pmax = 40.0 #maximal parallel acceleration
+a_pmin = 70.0 #maximal deceleration
+a_smax = 10.0 #maximal orthogonal acceleration
+v_max = np.inf #maximal speed
 method =  method.SLSQP 
-sound = False
+sound = True
 
-path = fc.track(375,380)
+path = fc.track(375,400)
 
 res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method)
 
@@ -41,26 +41,19 @@ alpha, vel = fc.split(res.x)
 
 #calculate from result
 position = np.array(fc.pos(path,alpha))
-a_s = []
-a_p = []
-for i in range(len(path[0])-2):
-    #take the correct alphas
-    q = alpha[i]
-    w = alpha[i+1]
-    e = alpha[i+2]
-    a_s.append(fc.acc(path,[q,w,e],[vel[i],vel[i+1]],i)[0])
-    a_p.append(fc.acc(path,[q,w,e],[vel[i],vel[i+1]],i)[1])
+a_s = fc.acc(path,alpha,vel,-1)[2]
+a_p = fc.acc(path,alpha,vel,-1)[3]
+
 
 #time    
-t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.array(vel))
+t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.delete(np.array(vel),-1))
     
 fc.plotter(path,position,vel,t)
 
+print('curve\n')
 fc.check(a_s,a_smax,0)
-print(a_s)
+print('acc and dec\n')
 fc.check(a_p,a_pmax,a_pmin)
-print(a_p)
-print(alpha)
-print(vel)
+
 
 print("--- %s seconds ---" % (time.time() - start_time))

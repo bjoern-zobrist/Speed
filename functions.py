@@ -186,50 +186,70 @@ def vel(v,position):
         vel.append( v * velocity/norm(velocity))
     return vel
 
-
-#calculate acceleration
 def acc(path,alpha,v,i):
-    left,right = path
-    left = left[i:i+3] #take parts we need
-    right = right[i:i+3]
-    path = left,right
-    
+    if i != -1:
+        left,right = path
+        left = left[i:i+3] #take parts we need
+        right = right[i:i+3]
+        path = left,right
+
     position = np.array(pos(path, alpha))
-    velocity = np.array(vel(v,position)) #direction of velocity
     v = np.array(v) #speed
     distance = np.array(dist(position))
-    if v[0] == 0 or v[1] == 0:
-        time = np.array([1000,1000])
-    else:
-        time = distance/v
-    dv = v[1]*velocity[1]-v[0]*velocity[0]
-    a = np.array([dv[0]/time[0],dv[1]/time[0]])
-    if velocity[0][0] == 0 or velocity[0][0] == 0:
-        a_s = 1000
-        a_p = 1000
-    else:
-        a_s = norm(a - (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0]) #orthogonal part to velocity
-        a_p = (np.dot(a,velocity[0]))/(np.dot(velocity[0],velocity[0])) * velocity[0] #parallel part of a to velocity
-    if v[1] > v[0]:
-        a_p = norm(a_p)
-    else:
-        a_p = -norm(a_p)
-    return a_s, a_p
 
+    #calculate curve acc
+    xt = np.gradient(position[:,0])
+    yt = np.gradient(position[:,1])
+    velocity = np.array([ [xt[i], yt[i]] for i in range(len(xt))])
+    speed = np.sqrt(xt**2+yt**2)
+
+    #curvature
+    xtt = np.gradient(xt)
+    ytt = np.gradient(yt)
+    curvature = np.abs(xtt * yt - xt * ytt) / (speed**2)**1.5
+    
+    a_s = v**2 * curvature
+
+    #calculate acc and dec
+    a_p = []
+    for i in range(len(v)-1):
+        a_p.append(((v[i+1])**2 - (v[i])**2)/(2*distance[i]))
+
+    return a_s[1], a_p[1], a_s, a_p
+
+#maximum v possible of path
+def pmax(path, alpha, a_smax, v_max):
+    position = np.array(pos(path, alpha))
+    xt = np.gradient(position[:,0])
+    yt = np.gradient(position[:,1])
+    velocity = np.array([ [xt[i], yt[i]] for i in range(len(xt))])
+    speed = np.sqrt(xt**2+yt**2)
+
+    #curvature
+    xtt = np.gradient(xt)
+    ytt = np.gradient(yt)
+
+    curvature = np.abs(xtt * yt - xt * ytt) / (speed**2)**1.5
+    v = np.sqrt(a_smax/curvature) #maximum possible speed
+    #if it's higher than vmax
+    for i in range(len(v)):
+        if v[i]>v_max:
+            v[i] = v_max
+    return v
 
 
 #check constraints
 def check(a, max, min):
-    #delete first and last element, as they can't be calculated correctly
-    a = np.delete(a,-1)
     a = np.delete(a,0)
     #tolerance
     epsilon = 0.2
     for i in range(len(a)):
         if max - a[i] < -epsilon:
             print('Accident!!!')
+            print(i)
         if min + a[i] < -epsilon:
             print('Accident!!!')
+            print(i)
 
 
 #splits vector in two parts
@@ -237,7 +257,7 @@ def split(x):
     alpha = []
     vel = []
     for i in range(len(x)):
-        if i < int(len(x)/2+1):
+        if i < int(len(x)/2):
             alpha.append(x[i])
         else:
             vel.append(x[i])
