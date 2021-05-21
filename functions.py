@@ -13,23 +13,17 @@ from numpy.linalg import norm
 import pandas as pd
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
-from methods import trust, cob, slsqp
+from methods import trust, cob, slsqp, slsqp2
 import enum
 
 class method(enum.Enum):
     SLSQP = 0
     TRUST = 1
     COBYLA = 2
+    SLSQP2 = 3
 
 def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
     
-
-    #initial guess
-    x0 = []
-    for i in range(len(path[0])):
-        x0.append(0.5)
-    for i in range (len(path[0])):
-        x0.append(1.0)
 
     #COBYLA
     if method == method.COBYLA:
@@ -38,6 +32,9 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
 
         #constraints
         cobylacons = m.cons()
+
+        #inital guess
+        x0 = m.initial()
 
         #optimization
         res = minimize(m.fun, x0, method='COBYLA', constraints=cobylacons)
@@ -54,6 +51,9 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
         #Boundaries
         bnds = m.bounds()
 
+        #inital guess
+        x0 = m.initial()
+
         #optimization
         res = minimize(m.fun, x0, method='trust-constr', bounds=bnds, constraints=trustcons)
 
@@ -67,10 +67,27 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
     
         #Boundaries
         bnds = m.bounds()
+
+        #inital guess
+        x0 = m.initial()
     
 
         #optimization
         res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slqpcons)
+
+    if method == method.SLSQP2:
+
+        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max)
+
+        #Boundaries
+        bnds = m.bounds()
+
+        #inital guess
+        x0 = m.initial()
+
+        #optimization
+        res = minimize(m.fun, x0, method='slsqp', bounds=bnds, options={'ftol': 1e-10, 'maxiter': 1e5})
+
 
     return res
 
@@ -122,7 +139,7 @@ def track(a,b):
         if i%2 != 0:
             dellist.append(i)
             zerolist.append(0)
-    right = np.delete(right,dellist,0)
+    #right = np.delete(right,dellist,0)
     #select part of racetrack
     if a == None:
         right = right
@@ -137,7 +154,7 @@ def track(a,b):
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    left = np.delete(left,dellist,0)
+    #left = np.delete(left,dellist,0)
     if a == None:
         left = left
     else:
@@ -237,6 +254,43 @@ def pmax(path, alpha, a_smax, v_max):
             v[i] = v_max
     return v
 
+#calculate speed possible in path
+def speed(pathmax, dx, a_max, a_min):
+
+    #if we need to brake
+    def brake(v,curve):
+        if v[curve]<pathmax[curve]:
+            return v
+        else:
+            v[curve] = pathmax[curve]
+            #brake
+            while(True):
+                speed = np.sqrt(2*dx[curve-1]*a_min + v[curve]**2)
+                if speed > v[curve-1]:
+                    break
+                else:
+                    v[curve-1] = speed
+                    curve = curve-1
+        return v
+
+    v = [] #velocities
+    for i in range(len(pathmax)):
+        v.append(0)
+
+    #find velocities
+    for i in range(len(pathmax)):
+        if i == 0:
+            v[i] = pathmax[i]
+        else:
+            v[i] = np.sqrt(2*dx[i-1]*a_max + v[i-1]**2)
+            v = brake(v,i)
+
+    dx = np.array(dx)
+    vk = np.delete(np.array(v),-1)
+
+    t = np.sum(dx/vk)
+
+    return t,v
 
 #check constraints
 def check(a, max, min):
@@ -278,7 +332,9 @@ def plotter(path,position,vel,t):
     p = np.array([xp, yp]).T.reshape(-1, 1, 2)
     s = np.concatenate([p[:-1], p[1:]], axis=1)
 
-    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
+    a = int((xr.max()-xr.min())/40+10)
+    b = int((yr.max()-yr.min())/40+5)
+    fig, axs = plt.subplots(1, 1, figsize=(a,b) ,sharex=True, sharey=True)
 
     findnorm = np.delete(vel,-1) #because last velocity can't be calculated exactly
     norm = plt.Normalize(findnorm.min(), findnorm.max())

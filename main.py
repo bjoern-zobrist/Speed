@@ -17,14 +17,14 @@ from functions import method
 start_time = time.time()
 
 
-a_pmax = 40.0 #maximal parallel acceleration
-a_pmin = 70.0 #maximal deceleration
+a_pmax = 30.0 #maximal parallel acceleration
+a_pmin = 20.0 #maximal deceleration
 a_smax = 10.0 #maximal orthogonal acceleration
-v_max = np.inf #maximal speed
-method =  method.SLSQP 
+v_max = 100.0 #maximal speed
+method =  method.SLSQP2
 sound = True
 
-path = fc.track(375,400)
+path = fc.track(700,900)
 
 res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method)
 
@@ -37,16 +37,22 @@ if sound == True:
     play.wait_done()
 
 
-alpha, vel = fc.split(res.x)
+if method == method.SLSQP2:
+    alpha = res.x
+    pathmax = np.array(fc.pmax(path, alpha, a_smax, v_max))
+    position = np.array(fc.pos(path, alpha))
+    distance = np.array(fc.dist(position))
+    t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin)
+
+else:
+    alpha, vel = fc.split(res.x)
+    position = np.array(fc.pos(path,alpha))
+    t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.delete(np.array(vel),-1))
 
 #calculate from result
-position = np.array(fc.pos(path,alpha))
 a_s = fc.acc(path,alpha,vel,-1)[2]
 a_p = fc.acc(path,alpha,vel,-1)[3]
 
-
-#time    
-t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.delete(np.array(vel),-1))
     
 fc.plotter(path,position,vel,t)
 

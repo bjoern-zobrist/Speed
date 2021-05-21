@@ -67,6 +67,15 @@ class trust:
         bnds = Bounds(bmin, bmax)
         return bnds
 
+    def initial(self):
+        #initial guess
+        x0 = []
+        for i in range(len(self.path[0])):
+            x0.append(0.5)
+        for i in range (len(self.path[0])):
+            x0.append(1.0)
+        return x0
+
 
 #COBYLA
 class cob:
@@ -146,6 +155,15 @@ class cob:
             c+=[{'type': 'ineq', 'fun': constraint_maker7(i)}]
     
         return tuple(c)
+    
+    def initial(self):
+        #initial guess
+        x0 = []
+        for i in range(len(self.path[0])):
+            x0.append(0.5)
+        for i in range (len(self.path[0])):
+            x0.append(1.0)
+        return x0
 
 #slsqp
 class slsqp:
@@ -206,3 +224,46 @@ class slsqp:
             else:
                 b+=[(0,self.v_max)]
         return tuple(b)
+
+    def initial(self):
+        #initial guess
+        x0 = []
+        for i in range(len(self.path[0])):
+            x0.append(0.5)
+        for i in range (len(self.path[0])):
+            x0.append(1.0)
+        return x0
+
+
+#SLSQP2
+class slsqp2:
+    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max):
+        self.path = path
+        self.a_smax = a_smax
+        self.a_pmax = a_pmax
+        self.a_pmin = a_pmin
+        self.v_max = v_max
+
+    def fun(self, x):
+        pathmax = np.array(fc.pmax(self.path, x, self.a_smax, self.v_max))
+        position = np.array(fc.pos(self.path, x))
+        distance = np.array(fc.dist(position))
+        return fc.speed(pathmax, distance, self.a_pmax, self.a_pmin)[0]
+
+    def bounds(self):
+        #Boundaries
+        bmin = []
+        bmax = []
+        #bounds of alpha
+        for i in range(len(self.path[0])):
+            bmin.append(0.0)
+            bmax.append(1.0)
+        bnds = Bounds(bmin, bmax)
+        return bnds
+
+    def initial(self):
+        #initial guess
+        x0 = []
+        for i in range(len(self.path[0])):
+            x0.append(0.5)
+        return x0
