@@ -22,7 +22,7 @@ class method(enum.Enum):
     COBYLA = 2
     SLSQP2 = 3
 
-def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
+def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start):
     
 
     #COBYLA
@@ -77,7 +77,7 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method):
 
     if method == method.SLSQP2:
 
-        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max)
+        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max, start)
 
         #Boundaries
         bnds = m.bounds()

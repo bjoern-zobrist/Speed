@@ -237,12 +237,13 @@ class slsqp:
 
 #SLSQP2
 class slsqp2:
-    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max):
+    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max, start):
         self.path = path
         self.a_smax = a_smax
         self.a_pmax = a_pmax
         self.a_pmin = a_pmin
         self.v_max = v_max
+        self.start = start
 
     def fun(self, x):
         pathmax = np.array(fc.pmax(self.path, x, self.a_smax, self.v_max))
@@ -256,8 +257,16 @@ class slsqp2:
         bmax = []
         #bounds of alpha
         for i in range(len(self.path[0])):
-            bmin.append(0.0)
-            bmax.append(1.0)
+            if i == 0:
+                if self.start == None:
+                    bmin.append(0.0)
+                    bmax.append(1.0)
+                else:
+                    bmin.append(self.start-0.05)
+                    bmax.append(self.start+0.05)
+            else:
+                bmin.append(0.0)
+                bmax.append(1.0)
         bnds = Bounds(bmin, bmax)
         return bnds
 
@@ -265,5 +274,8 @@ class slsqp2:
         #initial guess
         x0 = []
         for i in range(len(self.path[0])):
-            x0.append(0.5)
+            if self.start == None:
+                x0.append(0.5)
+            else:
+                x0.append(self.start)
         return x0
