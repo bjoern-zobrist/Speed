@@ -22,7 +22,7 @@ class method(enum.Enum):
     COBYLA = 2
     SLSQP2 = 3
 
-def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start):
+def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, terrain):
     
 
     #COBYLA
@@ -63,7 +63,7 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start):
         m = slsqp(path, a_smax, a_pmax, a_pmin, v_max)
 
         #constraints
-        slqpcons = m.cons()
+        slsqpcons = m.cons()
     
         #Boundaries
         bnds = m.bounds()
@@ -73,21 +73,27 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start):
     
 
         #optimization
-        res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slqpcons)
+        res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slsqpcons)
 
     if method == method.SLSQP2:
 
-        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max, start)
+        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain)
 
         #Boundaries
         bnds = m.bounds()
+
+        #constraints
+        if start == True:
+            slsqpcons = m.cons()
 
         #inital guess
         x0 = m.initial()
 
         #optimization
-        res = minimize(m.fun, x0, method='slsqp', bounds=bnds, options={'ftol': 1e-10, 'maxiter': 1e5})
-
+        if start == True:
+            res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slsqpcons, tol=1e-10, options={'maxiter': 1e4, 'disp': True}) 
+        else:
+            res = minimize(m.fun, x0, method='slsqp', bounds=bnds, tol=1e-10, options={'maxiter': 1e4, 'disp': True}) 
 
     return res
 
@@ -255,7 +261,7 @@ def pmax(path, alpha, a_smax, v_max):
     return v
 
 #calculate speed possible in path
-def speed(pathmax, dx, a_max, a_min):
+def speed(pathmax, dx, a_max, a_min, terrain):
 
     #if we need to brake
     def brake(v,curve):
@@ -277,13 +283,23 @@ def speed(pathmax, dx, a_max, a_min):
     for i in range(len(pathmax)):
         v.append(0)
 
-    #find velocities
-    for i in range(len(pathmax)):
-        if i == 0:
-            v[i] = pathmax[i]
-        else:
-            v[i] = np.sqrt(2*dx[i-1]*a_max + v[i-1]**2)
-            v = brake(v,i)
+    if terrain == False:
+        #find velocities
+        for i in range(len(pathmax)):
+            if i == 0:
+                v[i] = pathmax[i]
+            else:
+                v[i] = np.sqrt(2*dx[i-1]*a_max + v[i-1]**2)
+                v = brake(v,i)
+
+    else:
+        #find velocities
+        for i in range(len(pathmax)):
+            if i == 0:
+                v[i] = 0.01
+            else:
+                v[i] = np.sqrt(2*dx[i-1]*a_max[i] + v[i-1]**2)
+                v = brake(v,i)
 
     dx = np.array(dx)
     vk = np.delete(np.array(v),-1)

@@ -11,6 +11,6 @@ import numpy as np
 
 v = np.array([1,2,3,4,5])
 
-i = 2
 
-print(np.delete(v,-1))
+
+print(np.append(v,v[3:]))

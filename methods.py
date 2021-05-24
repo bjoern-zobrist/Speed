@@ -237,19 +237,21 @@ class slsqp:
 
 #SLSQP2
 class slsqp2:
-    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max, start):
+    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain):
         self.path = path
         self.a_smax = a_smax
         self.a_pmax = a_pmax
         self.a_pmin = a_pmin
         self.v_max = v_max
         self.start = start
+        self.alphastart = alphastart
+        self.terrain = terrain
 
     def fun(self, x):
         pathmax = np.array(fc.pmax(self.path, x, self.a_smax, self.v_max))
         position = np.array(fc.pos(self.path, x))
         distance = np.array(fc.dist(position))
-        return fc.speed(pathmax, distance, self.a_pmax, self.a_pmin)[0]
+        return fc.speed(pathmax, distance, self.a_pmax, self.a_pmin, self.terrain)[0]
 
     def bounds(self):
         #Boundaries
@@ -257,25 +259,30 @@ class slsqp2:
         bmax = []
         #bounds of alpha
         for i in range(len(self.path[0])):
-            if i == 0:
-                if self.start == None:
-                    bmin.append(0.0)
-                    bmax.append(1.0)
-                else:
-                    bmin.append(self.start-0.05)
-                    bmax.append(self.start+0.05)
-            else:
-                bmin.append(0.0)
-                bmax.append(1.0)
+            bmin.append(0.0)
+            bmax.append(1.0)
         bnds = Bounds(bmin, bmax)
         return bnds
+
+    #constraints
+    def cons(self):
+        #max curve acc
+        def constraint_maker(i=0):  # i MUST be an optional keyword argument, else it will not work
+            def constraint(x):
+                return  -x[i] + self.alphastart[i]
+            return constraint
+    
+        c = []
+    
+        #add constraints
+        for i in range(len(self.alphastart)):
+            c+=[{'type': 'eq', 'fun': constraint_maker(i)}]
+            
+        return tuple(c)
 
     def initial(self):
         #initial guess
         x0 = []
         for i in range(len(self.path[0])):
-            if self.start == None:
                 x0.append(0.5)
-            else:
-                x0.append(self.start)
         return x0

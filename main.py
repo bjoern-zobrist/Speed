@@ -17,62 +17,59 @@ from functions import method
 start_time = time.time()
 
 
-a_pmax = 30.0 #maximal parallel acceleration
+a_pmax = 20.0 #maximal parallel acceleration
 a_pmin = 20.0 #maximal deceleration
 a_smax = 10.0 #maximal orthogonal acceleration
-v_max = 100.0 #maximal speed
+v_max = np.inf #maximal speed
 path = fc.track(None,None)
-a = 600 #start
-b = 1000 #end
+a = 700 #start
+b = 850 #end
 method =  method.SLSQP2
 sound = True
 horizon = True #only with slsqp2
+terrain = False #only with slsqp2
+if terrain == True:
+    a_pmax = []
+    for i in range(b-a):
+        a_pmax.append((b-a-i)/5)
 
 if horizon == True:
     #finite horizon
-    horizon = 200
-    steps = int(2*(b-a)/horizon)
+    horizon = 100
+    steps = int(10*(b-a-horizon)/horizon)
     alpha = np.array([])
     vel = np.array([])
 
     for i in range(steps):
         if i == steps-1:
-            path = fc.track(int(a+i*horizon/2-1),b)
+            path = fc.track(int(a+i*horizon/10),b)
         else:
-            path = fc.track(int(a+i*horizon/2-1),int(a+i*horizon/2+horizon))
+            path = fc.track(int(a+i*horizon/10),int(a+i*horizon/10+horizon))
 
         if i == 0:
-            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, None)
+            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain)
         else:
-            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, alpha[-1])
+            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, True, alpha[len(alpha)-int(horizon/10):], terrain)
 
         alphah = res.x
-        pathmax = np.array(fc.pmax(path, alphah, a_smax, v_max))
-        position = np.array(fc.pos(path, alphah))
-        distance = np.array(fc.dist(position))
-        t, velh = fc.speed(pathmax, distance, a_pmax, a_pmin)
-
-        if i != 0:
-            alpha = np.delete(alpha,-1)
-            vel = np.delete(vel,-1)
 
         if i == steps-1:
-            for k in range(len(alphah)):
-                alpha = np.append(alpha, alphah[k])
-                vel = np.append(vel, velh[k])
+            alpha = np.append(alpha, alphah[int(horizon/10):])
+
+        if i == 0:
+            alpha = np.append(alpha, alphah[0:2*int(horizon/10)])
+
         else:
-            for k in range(int(horizon/2+1)):
-                alpha = np.append(alpha, alphah[k])
-                vel = np.append(vel, velh[k])
-        print(i)
+            alpha = np.append(alpha, alphah[int(horizon/10):2*int(horizon/10)])
+            
+        print(i+1, "of", steps)
         print("--- %s seconds ---" % (time.time() - start_time))
         
 path = fc.track(a,b)
 
-if horizon == False:
-    res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, None)
 
-print('Calculations done')
+if horizon == False:
+    res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain)
 
 if sound == True:
     Datei = '455602__inspectorj__tripod-horn-blast-single-01.wav'
@@ -87,7 +84,7 @@ if method == method.SLSQP2:
     pathmax = np.array(fc.pmax(path, alpha, a_smax, v_max))
     position = np.array(fc.pos(path, alpha))
     distance = np.array(fc.dist(position))
-    t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin)
+    t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin, terrain)
 
 else:
     #alpha, vel = fc.split(res.x)
@@ -100,11 +97,6 @@ a_p = fc.acc(path,alpha,vel,-1)[3]
 
     
 fc.plotter(path,position,vel,t)
-
-print('curve\n')
-fc.check(a_s,a_smax,0)
-print('acc and dec\n')
-fc.check(a_p,a_pmax,a_pmin)
 
 
 print("--- %s seconds ---" % (time.time() - start_time))
