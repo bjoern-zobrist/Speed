@@ -17,25 +17,25 @@ from functions import method
 start_time = time.time()
 
 
-a_pmax = 20.0 #maximal parallel acceleration
+a_pmax = 5.0 #maximal parallel acceleration
 a_pmin = 20.0 #maximal deceleration
-a_smax = 10.0 #maximal orthogonal acceleration
+a_smax = 20.0 #maximal orthogonal acceleration
 v_max = np.inf #maximal speed
 path = fc.track(None,None)
-a = 700 #start
-b = 850 #end
+a = 0 #start
+b = len(path[0]) #end
 method =  method.SLSQP2
 sound = True
 horizon = True #only with slsqp2
 terrain = False #only with slsqp2
-if terrain == True:
+if terrain:
     a_pmax = []
     for i in range(b-a):
         a_pmax.append((b-a-i)/5)
 
-if horizon == True:
+if horizon:
     #finite horizon
-    horizon = 100
+    horizon = 150
     steps = int(10*(b-a-horizon)/horizon)
     alpha = np.array([])
     vel = np.array([])
@@ -68,10 +68,10 @@ if horizon == True:
 path = fc.track(a,b)
 
 
-if horizon == False:
+if not horizon:
     res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain)
 
-if sound == True:
+if sound:
     Datei = '455602__inspectorj__tripod-horn-blast-single-01.wav'
     wave = sa.WaveObject.from_wave_file(Datei)
     play = wave.play()
@@ -79,7 +79,7 @@ if sound == True:
 
 
 if method == method.SLSQP2:
-    if horizon == False:
+    if not horizon:
         alpha = res.x
     pathmax = np.array(fc.pmax(path, alpha, a_smax, v_max))
     position = np.array(fc.pos(path, alpha))

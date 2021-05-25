@@ -83,14 +83,14 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, ter
         bnds = m.bounds()
 
         #constraints
-        if start == True:
+        if start:
             slsqpcons = m.cons()
 
         #inital guess
         x0 = m.initial()
 
         #optimization
-        if start == True:
+        if start:
             res = minimize(m.fun, x0, method='slsqp', bounds=bnds, constraints=slsqpcons, tol=1e-10, options={'maxiter': 1e4, 'disp': True}) 
         else:
             res = minimize(m.fun, x0, method='slsqp', bounds=bnds, tol=1e-10, options={'maxiter': 1e4, 'disp': True}) 
@@ -145,7 +145,7 @@ def track(a,b):
         if i%2 != 0:
             dellist.append(i)
             zerolist.append(0)
-    #right = np.delete(right,dellist,0)
+    right = np.delete(right,dellist,0)
     #select part of racetrack
     if a == None:
         right = right
@@ -160,7 +160,7 @@ def track(a,b):
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    #left = np.delete(left,dellist,0)
+    left = np.delete(left,dellist,0)
     if a == None:
         left = left
     else:
@@ -283,7 +283,7 @@ def speed(pathmax, dx, a_max, a_min, terrain):
     for i in range(len(pathmax)):
         v.append(0)
 
-    if terrain == False:
+    if not terrain:
         #find velocities
         for i in range(len(pathmax)):
             if i == 0:
