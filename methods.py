@@ -237,7 +237,7 @@ class slsqp:
 
 #SLSQP2
 class slsqp2:
-    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain):
+    def __init__(self, path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain, height):
         self.path = path
         self.a_smax = a_smax
         self.a_pmax = a_pmax
@@ -246,12 +246,13 @@ class slsqp2:
         self.start = start
         self.alphastart = alphastart
         self.terrain = terrain
+        self.height = height
 
     def fun(self, x):
         pathmax = np.array(fc.pmax(self.path, x, self.a_smax, self.v_max))
         position = np.array(fc.pos(self.path, x))
         distance = np.array(fc.dist(position))
-        return fc.speed(pathmax, distance, self.a_pmax, self.a_pmin, self.terrain)[0]
+        return fc.speed(pathmax, distance, self.a_pmax, self.a_pmin, self.terrain, self.height)[0]
 
     def bounds(self):
         #Boundaries

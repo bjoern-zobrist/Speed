@@ -22,20 +22,20 @@ a_pmin = 20.0 #maximal deceleration
 a_smax = 20.0 #maximal orthogonal acceleration
 v_max = np.inf #maximal speed
 path = fc.track(None,None)
-a = 0 #start
-b = len(path[0]) #end
+a = 750 #start
+b = 850 #end
 method =  method.SLSQP2
 sound = True
-horizon = True #only with slsqp2
-terrain = False #only with slsqp2
+horizon = False #only with slsqp2
+terrain = True #only with slsqp2
+height = []
 if terrain:
-    a_pmax = []
     for i in range(b-a):
-        a_pmax.append((b-a-i)/5)
+        height.append((b-a)*2-(i*2))
 
 if horizon:
     #finite horizon
-    horizon = 150
+    horizon = 10
     steps = int(10*(b-a-horizon)/horizon)
     alpha = np.array([])
     vel = np.array([])
@@ -47,9 +47,9 @@ if horizon:
             path = fc.track(int(a+i*horizon/10),int(a+i*horizon/10+horizon))
 
         if i == 0:
-            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain)
+            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain, height)
         else:
-            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, True, alpha[len(alpha)-int(horizon/10):], terrain)
+            res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, True, alpha[len(alpha)-int(horizon/10):], terrain, height)
 
         alphah = res.x
 
@@ -69,7 +69,7 @@ path = fc.track(a,b)
 
 
 if not horizon:
-    res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain)
+    res = fc.optimize(path, a_pmax, a_pmin, a_smax, v_max, method, False, None, terrain, height)
 
 if sound:
     Datei = '455602__inspectorj__tripod-horn-blast-single-01.wav'
@@ -84,7 +84,7 @@ if method == method.SLSQP2:
     pathmax = np.array(fc.pmax(path, alpha, a_smax, v_max))
     position = np.array(fc.pos(path, alpha))
     distance = np.array(fc.dist(position))
-    t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin, terrain)
+    t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin, terrain, height)
 
 else:
     #alpha, vel = fc.split(res.x)

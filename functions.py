@@ -22,7 +22,7 @@ class method(enum.Enum):
     COBYLA = 2
     SLSQP2 = 3
 
-def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, terrain):
+def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, terrain, height):
     
 
     #COBYLA
@@ -77,7 +77,7 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, ter
 
     if method == method.SLSQP2:
 
-        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain)
+        m = slsqp2(path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain, height)
 
         #Boundaries
         bnds = m.bounds()
@@ -145,7 +145,7 @@ def track(a,b):
         if i%2 != 0:
             dellist.append(i)
             zerolist.append(0)
-    right = np.delete(right,dellist,0)
+    #right = np.delete(right,dellist,0)
     #select part of racetrack
     if a == None:
         right = right
@@ -160,7 +160,7 @@ def track(a,b):
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    left = np.delete(left,dellist,0)
+    #left = np.delete(left,dellist,0)
     if a == None:
         left = left
     else:
@@ -261,29 +261,30 @@ def pmax(path, alpha, a_smax, v_max):
     return v
 
 #calculate speed possible in path
-def speed(pathmax, dx, a_max, a_min, terrain):
-
-    #if we need to brake
-    def brake(v,curve):
-        if v[curve]<pathmax[curve]:
-            return v
-        else:
-            v[curve] = pathmax[curve]
-            #brake
-            while(True):
-                speed = np.sqrt(2*dx[curve-1]*a_min + v[curve]**2)
-                if speed > v[curve-1]:
-                    break
-                else:
-                    v[curve-1] = speed
-                    curve = curve-1
-        return v
-
-    v = [] #velocities
-    for i in range(len(pathmax)):
-        v.append(0)
+def speed(pathmax, dx, a_max, a_min, terrain, height):
 
     if not terrain:
+        #if we need to brake
+        def brake(v,curve):
+            if v[curve]<pathmax[curve]:
+                return v
+            else:
+                v[curve] = pathmax[curve]
+                #brake
+                while(True):
+                    speed = np.sqrt(2*dx[curve-1]*a_min + v[curve]**2)
+                    if speed > v[curve-1]:
+                        break
+                    else:
+                        v[curve-1] = speed
+                        curve = curve-1
+            return v
+
+        v = [] #velocities
+        for i in range(len(pathmax)):
+            v.append(0)
+
+    
         #find velocities
         for i in range(len(pathmax)):
             if i == 0:
@@ -293,16 +294,43 @@ def speed(pathmax, dx, a_max, a_min, terrain):
                 v = brake(v,i)
 
     else:
-        #find velocities
+        #if we need to brake
+        def brake(v,curve, height, vcurve, startheight):
+            if v[curve]<pathmax[curve]:
+                vcurve = vcurve
+                startheight = startheight
+            else:
+                v[curve] = pathmax[curve]
+                vcurve = pathmax[curve]
+                startheight = height[curve]
+                #brake
+                while(True):
+                    speed = np.sqrt(2*dx[curve-1]*a_min + v[curve]**2)
+                    if speed > v[curve-1]:
+                        break
+                    else:
+                        v[curve-1] = speed
+                        curve = curve-1
+            return v, vcurve, startheight
+
+        v = [] #velocities
+        for i in range(len(pathmax)):
+            v.append(0)
+
+        startheight = height[0]
+        vcurve = 0
+
         for i in range(len(pathmax)):
             if i == 0:
-                v[i] = 0.01
+                v[i] = 0.0
             else:
-                v[i] = np.sqrt(2*dx[i-1]*a_max[i] + v[i-1]**2)
-                v = brake(v,i)
+                g = 9.81
+                v[i] = np.sqrt(np.abs(2 * g * (startheight-height[i])) + vcurve**2) 
+                v, vcurve, startheight = brake(v,i, height, vcurve, startheight)
+
 
     dx = np.array(dx)
-    vk = np.delete(np.array(v),-1)
+    vk = np.delete(np.array(v),0)
 
     t = np.sum(dx/vk)
 
