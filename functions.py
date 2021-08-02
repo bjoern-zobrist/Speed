@@ -28,7 +28,7 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, ter
     #COBYLA
     if method == method.COBYLA:
 
-        m = cob(path, a_smax, a_pmax, a_pmin, v_max)
+        m = cob(path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain, height)
 
         #constraints
         cobylacons = m.cons()
@@ -37,13 +37,13 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, ter
         x0 = m.initial()
 
         #optimization
-        res = minimize(m.fun, x0, method='COBYLA', constraints=cobylacons)
+        res = minimize(m.fun, x0, method='COBYLA', constraints=cobylacons,options={'maxiter': 1e4, 'disp': True})
 
     
     #trust-constr
     if method == method.TRUST:
         
-        m = trust(path, a_smax, a_pmax, a_pmin, v_max)
+        m = trust(path, a_smax, a_pmax, a_pmin, v_max, start, alphastart, terrain, height)
 
         #constraint
         trustcons = m.cons()
@@ -55,7 +55,7 @@ def optimize(path, a_pmax, a_pmin, a_smax, v_max, method, start, alphastart, ter
         x0 = m.initial()
 
         #optimization
-        res = minimize(m.fun, x0, method='trust-constr', bounds=bnds, constraints=trustcons)
+        res = minimize(m.fun, x0, method='trust-constr', bounds=bnds, options={'maxiter': 1e4, 'disp': True})
 
     #slsqp
     if method == method.SLSQP:
@@ -115,7 +115,7 @@ def track(a,b):
     right = np.array([[0,0],[1,0],[1.5,0],[2,0],[2.25,0.25],[2.5,0.5],[3,1.5],[3,3],[2.75,4],[2,4.5],[1.5,4.5],[1,4.5],[0,4.5]])
     '''
     #track
-    track = pd.read_csv("/Users/bjornzobrist/Documents/GitHub/racetrack-database/tracks/Silverstone.csv")
+    track = pd.read_csv("/Users/bjornzobrist/Documents/GitHub/racetrack-database/tracks/Nuerburgring.csv")
     track = track.to_numpy()
 
     #extract middle line
@@ -145,7 +145,7 @@ def track(a,b):
         if i%2 != 0:
             dellist.append(i)
             zerolist.append(0)
-    #right = np.delete(right,dellist,0)
+    right = np.delete(right,dellist,0)
     #select part of racetrack
     if a == None:
         right = right
@@ -160,7 +160,7 @@ def track(a,b):
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    #left = np.delete(left,dellist,0)
+    left = np.delete(left,dellist,0)
     if a == None:
         left = left
     else:
@@ -361,7 +361,7 @@ def split(x):
             vel.append(x[i])
     return alpha, vel
 
-def plotter(path,position,vel,t):
+def plotter(path,position,vel,t,a_p,a_s,distance):
     left = path[0]
     right = path[1]
     xl = left[:,0]
@@ -386,16 +386,46 @@ def plotter(path,position,vel,t):
     lc.set_array(vel)
     lc.set_linewidth(2)
     line = axs.add_collection(lc)
-    fig.colorbar(line, ax=axs)
+    fig.colorbar(lc, orientation="horizontal", label="Velocity (m/s)",shrink = 0.5, aspect=30)
     plt.title('Time: %1.3f \n'%t)
     plt.plot(xl,yl,'k')
     plt.plot(xr,yr,'k')
-
     plt.grid(True)
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.xlabel('x [m] \n')
+    plt.ylabel('y [m]')
     axs.set_xlim(np.minimum(xr.min(),xl.min())-2, np.maximum(xr.max(),xl.max())+2)
     axs.set_ylim(np.minimum(yr.min(),yl.min())-2, np.maximum(yr.max(),yl.max())+2)
+    plt.axis('square')
     fig.savefig('result.png',orientation='portrait')
+
+    x = []
+    k = 0
+    for i in range(len(vel)):
+        x+=[k]
+        if i != len(vel)-1:
+            k += distance[i]
+
+    fig1 = plt.figure(figsize=(30,18),dpi=80)
+    plt.title('Velocity and Acceleration \n'%t)
+    plt.plot(x,vel,'r',label=r'velocity [$m/s$]')
+    x = []
+    k = 0
+    for i in range(len(a_s)):
+        x+=[k]
+        if i != len(a_s)-1:
+            k += distance[i]
+    plt.plot(x,a_s,'b',label=r'curve acceleration [$m/s^2$]')
+    x = []
+    k = 0
+    for i in range(len(a_p)):
+        x+=[k]
+        if i != len(a_p)-1:
+            k += distance[i]
+    plt.plot(x,a_p,'g',label=r'acceleration [$m/s^2$]')
+    plt.grid(True)
+    plt.xlabel(r'position [$m$]')
+    plt.ylabel('dynamics')
+    plt.legend()
+    fig1.savefig('result2.png',orientation='portrait')
 
 

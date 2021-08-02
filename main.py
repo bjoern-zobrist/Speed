@@ -17,17 +17,17 @@ from functions import method
 start_time = time.time()
 
 
-a_pmax = 5.0 #maximal parallel acceleration
-a_pmin = 20.0 #maximal deceleration
-a_smax = 20.0 #maximal orthogonal acceleration
-v_max = np.inf #maximal speed
+a_pmax = 15.0 #maximal parallel acceleration
+a_pmin = 30.0 #maximal deceleration
+a_smax = 40.0 #maximal orthogonal acceleration
+v_max = 83.0 #maximal speed
 path = fc.track(None,None)
-a = 750 #start
-b = 850 #end
+a = 0 #start
+b = len(path[0]) #end
 method =  method.SLSQP2
 sound = True
-horizon = False #only with slsqp2
-terrain = True #only with slsqp2
+horizon = True #only with slsqp2
+terrain = False #only with slsqp2
 height = []
 if terrain:
     for i in range(b-a):
@@ -35,7 +35,7 @@ if terrain:
 
 if horizon:
     #finite horizon
-    horizon = 10
+    horizon = 100
     steps = int(10*(b-a-horizon)/horizon)
     alpha = np.array([])
     vel = np.array([])
@@ -78,7 +78,7 @@ if sound:
     play.wait_done()
 
 
-if method == method.SLSQP2:
+if method == method.SLSQP2 or method == method.TRUST or method == method.COBYLA:
     if not horizon:
         alpha = res.x
     pathmax = np.array(fc.pmax(path, alpha, a_smax, v_max))
@@ -87,7 +87,7 @@ if method == method.SLSQP2:
     t, vel = fc.speed(pathmax, distance, a_pmax, a_pmin, terrain, height)
 
 else:
-    #alpha, vel = fc.split(res.x)
+    alpha, vel = fc.split(res.x)
     position = np.array(fc.pos(path,alpha))
     t = np.sum(np.array(fc.dist(fc.pos(path,alpha)))/np.delete(np.array(vel),-1))
 
@@ -96,7 +96,7 @@ a_s = fc.acc(path,alpha,vel,-1)[2]
 a_p = fc.acc(path,alpha,vel,-1)[3]
 
     
-fc.plotter(path,position,vel,t)
+fc.plotter(path,position,vel,t,a_p,a_s,distance)
 
 
 print("--- %s seconds ---" % (time.time() - start_time))
