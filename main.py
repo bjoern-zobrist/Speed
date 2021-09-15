@@ -22,20 +22,22 @@ a_pmin = 30.0 #maximal deceleration
 a_smax = 40.0 #maximal orthogonal acceleration
 v_max = 83.0 #maximal speed
 path = fc.track(None,None)
-a = 0 #start
-b = len(path[0]) #end
+a = 690 #start
+b = 730 #end
 method =  method.SLSQP2
-sound = True
-horizon = True #only with slsqp2
+sound = False
+horizon = False #only with slsqp2
 terrain = False #only with slsqp2
 height = []
 if terrain:
     for i in range(b-a):
-        height.append((b-a)*2-(i*2))
+        height.append(np.sqrt((b-a)-i)*10)
+        #height.append(b-a-i)
+
 
 if horizon:
     #finite horizon
-    horizon = 100
+    horizon = 10
     steps = int(10*(b-a-horizon)/horizon)
     alpha = np.array([])
     vel = np.array([])
@@ -95,6 +97,7 @@ else:
 a_s = fc.acc(path,alpha,vel,-1)[2]
 a_p = fc.acc(path,alpha,vel,-1)[3]
 
+curvature = np.array(fc.curvature(path, alpha, a_smax, v_max))
     
 fc.plotter(path,position,vel,t,a_p,a_s,distance)
 

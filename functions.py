@@ -115,7 +115,7 @@ def track(a,b):
     right = np.array([[0,0],[1,0],[1.5,0],[2,0],[2.25,0.25],[2.5,0.5],[3,1.5],[3,3],[2.75,4],[2,4.5],[1.5,4.5],[1,4.5],[0,4.5]])
     '''
     #track
-    track = pd.read_csv("/Users/bjornzobrist/Documents/GitHub/racetrack-database/tracks/Nuerburgring.csv")
+    track = pd.read_csv("/Users/bjornzobrist/Documents/GitHub/racetrack-database/tracks/Budapest.csv")
     track = track.to_numpy()
 
     #extract middle line
@@ -145,7 +145,7 @@ def track(a,b):
         if i%2 != 0:
             dellist.append(i)
             zerolist.append(0)
-    right = np.delete(right,dellist,0)
+    #right = np.delete(right,dellist,0)
     #select part of racetrack
     if a == None:
         right = right
@@ -160,7 +160,7 @@ def track(a,b):
         perp = perp/norm(perp) #norm
         left.append(middle[i]-track[i,3]*perp)
     left = np.array(left)
-    left = np.delete(left,dellist,0)
+    #left = np.delete(left,dellist,0)
     if a == None:
         left = left
     else:
@@ -259,6 +259,26 @@ def pmax(path, alpha, a_smax, v_max):
         if v[i]>v_max:
             v[i] = v_max
     return v
+
+#maximum v possible of path
+def curvature(path, alpha, a_smax, v_max):
+    position = np.array(pos(path, alpha))
+    xt = np.gradient(position[:,0])
+    yt = np.gradient(position[:,1])
+    velocity = np.array([ [xt[i], yt[i]] for i in range(len(xt))])
+    speed = np.sqrt(xt**2+yt**2)
+
+    #curvature
+    xtt = np.gradient(xt)
+    ytt = np.gradient(yt)
+
+    curvature = np.abs(xtt * yt - xt * ytt) / (speed**2)**1.5
+    v = np.sqrt(a_smax/curvature) #maximum possible speed
+    #if it's higher than vmax
+    for i in range(len(v)):
+        if v[i]>v_max:
+            v[i] = v_max
+    return curvature
 
 #calculate speed possible in path
 def speed(pathmax, dx, a_max, a_min, terrain, height):
@@ -404,6 +424,14 @@ def plotter(path,position,vel,t,a_p,a_s,distance):
         x+=[k]
         if i != len(vel)-1:
             k += distance[i]
+
+    plt.rc("font", size=18)
+    plt.rc("axes", titlesize=30)
+    plt.rc("axes", labelsize=22)
+    plt.rc("xtick", labelsize=24)
+    plt.rc("ytick", labelsize=24)
+    plt.rc("legend", fontsize=22)
+    plt.rc("figure", titlesize=24)
 
     fig1 = plt.figure(figsize=(30,18),dpi=80)
     plt.title('Velocity and Acceleration \n'%t)
